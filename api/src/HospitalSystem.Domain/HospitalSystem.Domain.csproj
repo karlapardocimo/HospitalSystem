@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Domain: entidades, regras e abstrações. Não depende de nenhum outro projeto nem pacote. -->
+  <PropertyGroup>
+    <RootNamespace>HospitalSystem.Domain</RootNamespace>
+  </PropertyGroup>
+</Project>

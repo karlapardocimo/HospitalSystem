@@ -1,0 +1,635 @@
+\documentclass[12pt,a4paper]{article}
+
+% ---------------------------------------------------------------
+% Documentação do Sistema e da API — Manus Hospital
+% Compilar no Overleaf com pdfLaTeX (padrão).
+% ---------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\sloppy
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{etoolbox}
+\AtBeginEnvironment{tabularx}{\small}
+\AtBeginEnvironment{longtable}{\small}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{azul}{HTML}{14213D}
+\definecolor{verde}{HTML}{1F7A6F}
+\definecolor{fundo}{HTML}{F4F6F8}
+\definecolor{borda}{HTML}{D5DCE3}
+
+\titleformat{\section}{\Large\bfseries\color{azul}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{verde}}{\thesubsection}{0.6em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Manus Hospital — Documentação do Sistema e da API}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\renewcommand{\arraystretch}{1.25}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{fundo},
+  frame=single,
+  rulecolor=\color{borda},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  xleftmargin=4pt, xrightmargin=4pt,
+  literate=
+    {á}{{\'a}}1 {à}{{\`a}}1 {ã}{{\~a}}1 {â}{{\^a}}1
+    {é}{{\'e}}1 {ê}{{\^e}}1 {í}{{\'i}}1
+    {ó}{{\'o}}1 {õ}{{\~o}}1 {ô}{{\^o}}1 {ú}{{\'u}}1
+    {ç}{{\c{c}}}1 {Ç}{{\c{C}}}1 {Á}{{\'A}}1 {É}{{\'E}}1
+    {Ó}{{\'O}}1 {Ã}{{\~A}}1 {→}{{$\rightarrow$}}1
+}
+\newcommand{\cod}[1]{\texttt{#1}}
+
+\begin{document}
+
+% ======================= CAPA =======================
+\begin{titlepage}
+  \centering
+  {\large INSTITUTO FEDERAL DO SUDESTE DE MINAS GERAIS\\ Campus Muriaé\par}
+  \vspace{0.5cm}
+  {\large Gestão da Tecnologia da Informação\\ Engenharia de Software\par}
+  \vfill
+  {\Huge\bfseries\color{azul} Manus Hospital\par}
+  \vspace{0.4cm}
+  {\LARGE Documentação do Sistema e da API\par}
+  \vspace{0.4cm}
+  {\large API REST em C\# / ASP.NET Core integrada ao aplicativo PHP\par}
+  \vfill
+  \begin{tabular}{ll}
+    \textbf{Integrantes:} & Karla Pardócimo \\
+                          & Amanda Garcia \\
+                          & Gabriel Pimentel \\
+  \end{tabular}
+  \vfill
+  {\large Muriaé — MG\\ 2026\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ======================= 1 =======================
+\section{Introdução}
+
+Este documento descreve o \textbf{Manus Hospital}, sistema de gestão hospitalar desenvolvido na
+disciplina anterior em PHP e MySQL e evoluído nesta etapa para uma arquitetura
+\textbf{cliente/servidor}. Na versão anterior o aplicativo PHP acessava o banco de dados
+diretamente. Agora uma \textbf{API REST em C\# / ASP.NET Core} concentra as regras de negócio,
+o acesso aos dados, a autenticação JWT e o cache, e o aplicativo PHP passa a ser apenas um
+cliente dessa API.
+
+O documento cobre os itens exigidos na seção 9 da especificação do trabalho: descrição do
+sistema, tecnologias, arquitetura, execução da API e do aplicativo, banco de dados,
+autenticação JWT, estratégia de cache, endpoints, exemplos de requisições e respostas e
+reprodução do projeto. Inclui também as principais decisões arquiteturais.
+
+O código-fonte completo, o \cod{README.md} e os documentos complementares
+(\cod{docs/REGRAS\_DE\_NEGOCIO.md} e \cod{docs/DECISOES\_ARQUITETURAIS.md}) estão no
+repositório Git do projeto.
+
+% ======================= 2 =======================
+\section{Descrição do sistema}
+
+O sistema cobre o fluxo de um hospital, do cadastro do paciente ao faturamento:
+
+\begin{itemize}[itemsep=2pt]
+  \item \textbf{Pacientes}, com validação de CPF e registro de alergias, verificadas em toda prescrição;
+  \item \textbf{Consultas e fila de triagem}: agendamento, check-in, cancelamento e falta;
+  \item \textbf{Triagem pelo Protocolo de Manchester}: a API calcula a cor de risco a partir dos
+        sinais vitais e ordena a fila de atendimento por gravidade;
+  \item \textbf{Prontuário eletrônico}: evolução clínica, prescrições com bloqueio por alergia e alerta
+        de interação medicamentosa, exames e resultados;
+  \item \textbf{Leitos e internações}: mapa de leitos, internação, transferência e alta;
+  \item \textbf{Estoque de insumos}: entradas, saídas, estoque crítico e uso em paciente internado;
+  \item \textbf{Faturamento}: consolidação de gastos, emissão de guias, auditoria de valores altos,
+        pagamento e cancelamento;
+  \item \textbf{Usuários e perfis} (Administrador, Médico, Enfermagem e Recepção), cada um com
+        permissões diferentes.
+\end{itemize}
+
+Cada regra de negócio recebe um código (por exemplo \cod{RN-PAC-02} ou \cod{RN-TRI-05}), que
+aparece nas mensagens de erro da API. A lista completa está em
+\cod{docs/REGRAS\_DE\_NEGOCIO.md}.
+
+% ======================= 3 =======================
+\section{Tecnologias utilizadas}
+
+\begin{tabularx}{\textwidth}{@{}lL@{}}
+\toprule
+\textbf{Parte} & \textbf{Tecnologia} \\
+\midrule
+Linguagem da API     & C\# no \textbf{.NET 10 (LTS)}, ASP.NET Core Web API com controllers \\
+Acesso a dados       & ADO.NET com \textbf{MySqlConnector 3.0} e SQL parametrizado \\
+Banco de dados       & \textbf{MariaDB 10.11} (Docker) ou MySQL 8 (XAMPP) \\
+Autenticação         & \textbf{JWT} assinado com HMAC-SHA256 (\cod{JwtBearer}) \\
+Senhas               & \textbf{PBKDF2-SHA256}, 100.000 iterações e salt por usuário \\
+Cache                & \textbf{IMemoryCache}, estratégia \textit{cache-aside} \\
+Documentação da API  & Swagger / OpenAPI (Swashbuckle) \\
+Aplicativo cliente   & PHP 8.3 com cURL, Bootstrap 5 \\
+Implantação          & \textbf{Docker} e Docker Compose \\
+Versionamento        & Git \\
+\bottomrule
+\end{tabularx}
+
+% ======================= 4 =======================
+\section{Estrutura da arquitetura}
+
+\subsection{Visão geral}
+
+A Figura~\ref{fig:geral} mostra a arquitetura final, que segue o modelo da especificação: o
+aplicativo cliente conversa com a API por HTTP, e somente a API acessa o banco de dados.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  caixa/.style={draw=azul, rounded corners, minimum width=2.9cm, minimum height=1.3cm,
+                align=center, font=\small, fill=white},
+  dest/.style={caixa, fill=verde!12, draw=verde},
+  seta/.style={-{Stealth[length=3mm]}, thick, color=azul}]
+  \node[caixa] (php) {Aplicativo PHP\\\scriptsize container \cod{web} :8080};
+  \node[dest, right=2.4cm of php] (api) {API ASP.NET Core\\\scriptsize container \cod{api} :5080};
+  \node[caixa, right=2.4cm of api] (db) {MariaDB\\\scriptsize container \cod{db} :3307};
+  \draw[seta] (php) -- node[above, font=\scriptsize]{HTTP + JWT} (api);
+  \draw[seta] (api) -- node[above, font=\scriptsize]{ADO.NET} (db);
+\end{tikzpicture}
+\caption{Aplicativo cliente, API e banco de dados em três containers.}
+\label{fig:geral}
+\end{figure}
+
+\subsection{Clean Architecture}
+
+A API está dividida em quatro projetos. As dependências apontam para dentro: o domínio não
+conhece banco de dados, HTTP nem bibliotecas externas.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  caixa/.style={draw=azul, rounded corners, minimum width=3.4cm, minimum height=1cm,
+                align=center, font=\small, fill=white},
+  seta/.style={-{Stealth[length=3mm]}, thick, color=azul}]
+  \node[caixa] (api) {Api};
+  \node[caixa, right=1.6cm of api] (app) {Application};
+  \node[caixa, right=1.6cm of app, fill=verde!12, draw=verde] (dom) {Domain};
+  \node[caixa, below=1.2cm of app] (inf) {Infrastructure};
+  \draw[seta] (api) -- (app);
+  \draw[seta] (app) -- (dom);
+  \draw[seta] (api) |- (inf);
+  \draw[seta] (inf) -- (app);
+  \draw[seta] (inf) -| (dom);
+\end{tikzpicture}
+\caption{Regra de dependência entre os projetos.}
+\end{figure}
+
+\begin{tabularx}{\textwidth}{@{}lLl@{}}
+\toprule
+\textbf{Camada} & \textbf{Contém} & \textbf{Depende de} \\
+\midrule
+Domain         & Entidades com as regras, value objects (\cod{Cpf}), serviços de domínio
+                 (\cod{ClassificadorManchester}, \cod{AnalisadorPrescricao}) e interfaces dos repositórios & nada \\
+Application    & Casos de uso (\cod{*Service}), DTOs, \cod{ResultWrapper}, chaves de cache,
+                 interfaces de infraestrutura & Domain \\
+Infrastructure & Repositórios SQL, \cod{DbSession} (Unit of Work), PBKDF2, geração do JWT,
+                 \cod{MemoryCacheService} & Application, Domain \\
+Api            & Controllers, \cod{Program.cs} (injeção de dependências, JWT, Swagger),
+                 middlewares de erro e de cache & Application, Infrastructure \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+O arquivo \cod{HospitalSystem.Domain.csproj} não referencia nenhum outro projeto nem pacote,
+o que comprova a regra de dependência.
+
+\subsection{Organização das pastas}
+
+\begin{lstlisting}
+HospitalSystem/
++-- api/                              API ASP.NET Core
+|   +-- HospitalSystem.sln
+|   +-- Dockerfile
+|   +-- src/
+|       +-- HospitalSystem.Domain/          entidades, regras, interfaces
+|       +-- HospitalSystem.Application/     serviços, DTOs, ResultWrapper
+|       +-- HospitalSystem.Infrastructure/  SQL, JWT, hash, cache
+|       +-- HospitalSystem.Api/             controllers, Program.cs
++-- web/                              aplicativo PHP (cliente da API)
+|   +-- lib/ApiClient.php
+|   +-- Dockerfile
++-- database/                         scripts SQL
++-- docs/                             regras de negócio e decisões
++-- docker-compose.yml
++-- .env.example
++-- README.md
+\end{lstlisting}
+
+\subsection{Fluxo de uma requisição}
+
+Exemplo: \cod{POST /api/internacoes}.
+
+\begin{enumerate}[itemsep=2pt]
+  \item \cod{InternacoesController} recebe o JSON e chama o serviço; o controller não tem regra de negócio;
+  \item \cod{InternacaoService} busca paciente e leito pelos repositórios e verifica se o paciente já está internado;
+  \item a entidade \cod{Internacao} aplica as regras de domínio: o leito precisa estar disponível e passa a ocupado;
+  \item o Unit of Work grava internação e leito na mesma transação;
+  \item o cache do mapa de leitos e do painel é invalidado;
+  \item o serviço devolve um \cod{ResultWrapper}, que o controller converte em \cod{201 Created}.
+\end{enumerate}
+
+% ======================= 5 =======================
+\section{Execução do projeto}
+
+\subsection{Com Docker (forma oficial)}
+
+Pré-requisito: Docker Desktop instalado e em execução. Na pasta do projeto:
+
+\begin{lstlisting}
+copy .env.example .env        (Linux/macOS: cp .env.example .env)
+docker compose up --build
+\end{lstlisting}
+
+\begin{tabularx}{\textwidth}{@{}lL@{}}
+\toprule
+\textbf{Serviço} & \textbf{Endereço} \\
+\midrule
+Aplicativo PHP      & \url{http://localhost:8080/login.php} \\
+API (Swagger)       & \url{http://localhost:5080/swagger} \\
+Banco MariaDB       & \cod{localhost:3307} (usuário \cod{hospital}, senha do \cod{.env}) \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Na primeira execução a API cria as tabelas, o administrador e os dados de demonstração. Para
+recomeçar do zero: \cod{docker compose down -v}.
+
+\subsection{Execução da API sem Docker}
+
+Pré-requisitos: .NET 10 SDK e MySQL/MariaDB (por exemplo, do XAMPP). As configurações
+sensíveis são definidas com \textit{user-secrets}, fora do código:
+
+\begin{lstlisting}
+cd api/src/HospitalSystem.Api
+dotnet user-secrets set "ConnectionStrings:HospitalDb" "Server=localhost;Port=3306;Database=hospital_api;User ID=root;Password=;"
+dotnet user-secrets set "Jwt:Key" "chave-aleatoria-com-pelo-menos-32-caracteres"
+dotnet user-secrets set "Seed:AdminSenha" "Admin@2026"
+dotnet user-secrets set "Seed:SenhaUsuariosDemo" "Demo@2026"
+dotnet run --launch-profile http
+\end{lstlisting}
+
+A API sobe em \url{http://localhost:5080} e abre o Swagger.
+
+\subsection{Execução do aplicativo sem Docker}
+
+Com a API rodando, em outro terminal:
+
+\begin{lstlisting}
+cd web
+php -S localhost:8000
+\end{lstlisting}
+
+Acesse \url{http://localhost:8000/login.php}. O endereço da API fica em
+\cod{web/config/config.php} (\cod{API\_BASE\_URL}).
+
+\subsection{Usuários de demonstração}\label{sec:usuarios}
+
+\begin{tabularx}{\textwidth}{@{}llL@{}}
+\toprule
+\textbf{Perfil} & \textbf{E-mail} & \textbf{Senha} \\
+\midrule
+Administrador & admin@hospital.local      & \cod{Admin@2026} \\
+Médico        & medico@hospital.local     & \cod{Demo@2026} \\
+Enfermagem    & enfermagem@hospital.local & \cod{Demo@2026} \\
+Recepção      & recepcao@hospital.local   & \cod{Demo@2026} \\
+\bottomrule
+\end{tabularx}
+
+% ======================= 6 =======================
+\section{Configuração do banco de dados}
+
+\begin{tabularx}{\textwidth}{@{}lL@{}}
+\toprule
+\textbf{Configuração} & \textbf{Descrição} \\
+\midrule
+\cod{ConnectionStrings:HospitalDb}        & conexão com o banco (\cod{.env} no Docker ou \textit{user-secrets}) \\
+\cod{Database:InicializarAutomaticamente} & cria banco e tabelas e aplica as migrações ao iniciar \\
+\cod{Database:CriarDadosDemo}             & insere dados de exemplo se o banco estiver vazio \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Scripts na pasta \cod{database/}: \cod{hospital.sql} (schema completo), \cod{dados\_demo.sql}
+(dados de demonstração) e \cod{migracao\_php\_para\_api.sql} (migração de um banco do sistema
+anterior). Em relação ao banco original, foram acrescentadas a tabela \cod{usuarios} e colunas
+em \cod{triagem}, \cod{prontuario}, \cod{prescricoes}, \cod{faturamento} e \cod{uso\_insumos}.
+
+O acesso ao banco usa ADO.NET com SQL parametrizado (\cod{@cpf}, \cod{@nome}), sem concatenar
+valores, o que evita SQL Injection. A classe \cod{DbSession} abre uma conexão por requisição e
+controla as transações (Unit of Work).
+
+Para consultar o banco no Docker:
+\begin{lstlisting}
+docker exec -it hospital-db mariadb -u hospital -p hospital
+\end{lstlisting}
+
+% ======================= 7 =======================
+\section{Autenticação JWT}
+
+\subsection{Funcionamento}
+
+\begin{enumerate}[itemsep=2pt]
+  \item O cliente envia \cod{POST /api/auth/login} com e-mail e senha (endpoint público).
+  \item A API confere a senha com o hash PBKDF2; a senha nunca é armazenada em texto puro.
+  \item Se estiver correta, gera um JWT assinado com HMAC-SHA256 contendo \cod{sub} (id),
+        \cod{name}, \cod{email}, \cod{role} (perfil) e \cod{jti}, válido por 60 minutos.
+  \item O cliente envia o token em todas as requisições: \cod{Authorization: Bearer <token>}.
+  \item A API valida assinatura, emissor, audiência e validade. Sem token ou com token inválido
+        a resposta é \textbf{401}; perfil sem permissão recebe \textbf{403}.
+\end{enumerate}
+
+\subsection{Ciclo de vida do token}
+
+Emitido no login, enviado em cada requisição, validado pela API sem consultar o banco
+(\textit{stateless}), expira após 60 minutos e exige novo login. No logout o aplicativo descarta o
+token da sessão.
+
+\subsection{Proteção dos endpoints}
+
+\begin{itemize}[itemsep=2pt]
+  \item \textbf{Seguro por padrão}: uma \cod{FallbackPolicy} exige autenticação em todos os
+        endpoints, exceto os marcados com \cod{[AllowAnonymous]} (\cod{/api/auth/login} e \cod{/api/status});
+  \item autorização por perfil com \cod{[Authorize(Roles = ...)]};
+  \item bloqueio da conta por 15 minutos após 5 senhas erradas;
+  \item mensagem genérica ``E-mail ou senha inválidos'', para não revelar quais e-mails existem.
+\end{itemize}
+
+\subsection{Chaves e configurações sensíveis}
+
+A chave de assinatura (\cod{Jwt:Key}), a string de conexão e as senhas iniciais ficam
+\textbf{fora do código-fonte}: no arquivo \cod{.env} (Docker) ou em \textit{user-secrets}
+(execução local). O \cod{appsettings.json} versionado mantém esses campos vazios, e o
+\cod{.env} está no \cod{.gitignore}. A API não inicia se a chave tiver menos de 32 caracteres.
+
+\subsection{No aplicativo PHP}
+
+\cod{login.php} chama a API e guarda o token em \cod{\$\_SESSION['token']}, no servidor e nunca
+no navegador. A classe \cod{ApiClient} envia o token no cabeçalho \cod{Authorization}. Se a API
+responder 401, a sessão é encerrada e o usuário volta ao login.
+
+% ======================= 8 =======================
+\section{Estratégia de cache}
+
+O cache usa \textbf{IMemoryCache} com a estratégia \textbf{cache-aside}, por trás da interface
+\cod{ICacheService} (Application) e da implementação \cod{MemoryCacheService} (Infrastructure):
+
+\begin{enumerate}[itemsep=2pt]
+  \item o serviço procura a chave no cache;
+  \item \textbf{HIT}: devolve o dado da memória, sem acessar o banco;
+  \item \textbf{MISS}: busca no banco, guarda com expiração absoluta e devolve;
+  \item toda operação de escrita \textbf{invalida} as chaves afetadas.
+\end{enumerate}
+
+\begin{tabularx}{\textwidth}{@{}lllL@{}}
+\toprule
+\textbf{Dado} & \textbf{Chave} & \textbf{Expiração} & \textbf{Invalidação} \\
+\midrule
+Médicos, convênios, salas, medicamentos & \cod{catalogo:*}        & 10 min & ao criar, editar ou excluir o item \\
+Mapa de leitos                          & \cod{leitos:\{status\}} & 1 min  & mudança em leito ou internação \\
+Painel (dashboard)                      & \cod{dashboard}         & 30 s   & mudança em paciente, consulta, triagem, leito ou internação \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Fila de triagem, estoque e faturamento \textbf{não} usam cache, porque mudam a todo momento e
+precisam estar exatos.
+
+\subsection{Como identificar HIT, MISS e invalidação}
+
+Cada resposta traz o cabeçalho \cod{X-Cache: HIT} ou \cod{X-Cache: MISS}, e a API registra no
+log:
+
+\begin{lstlisting}
+[CACHE MISS] catalogo:medicos → buscando na fonte original (banco de dados)
+[CACHE SET]  catalogo:medicos armazenado por 600s
+[CACHE HIT]  catalogo:medicos → dado servido da memória (expira em 599s)
+[CACHE INVALIDADO] catalogo:medicos → a próxima leitura buscará dados atualizados no banco
+[CACHE EXPIROU] dashboard
+\end{lstlisting}
+
+No Docker, os logs são vistos com \cod{docker compose logs -f api}. O administrador pode limpar
+todo o cache com \cod{DELETE /api/cache}.
+
+% ======================= 9 =======================
+\section{Padrão de resposta: ResultWrapper}
+
+Todas as respostas, de sucesso ou de erro, seguem o mesmo formato:
+
+\begin{lstlisting}
+{ "success": true, "message": "Operação realizada com sucesso.", "data": { }, "errors": [] }
+\end{lstlisting}
+
+\begin{tabularx}{\textwidth}{@{}lL@{}}
+\toprule
+\textbf{Status} & \textbf{Quando ocorre} \\
+\midrule
+200 / 201 & sucesso (201 em criação) \\
+400 & JSON mal formado ou tipo inválido \\
+401 & sem token, token inválido ou expirado, login inválido \\
+403 & perfil sem permissão \\
+404 & registro não encontrado \\
+409 & duplicidade (CPF, CRM, e-mail) \\
+422 & regra de negócio violada (mensagem com código \cod{RN-XXX-NN}) \\
+500 & erro inesperado (detalhe apenas no log) \\
+\bottomrule
+\end{tabularx}
+
+\medskip
+Erros não tratados são capturados pelo \cod{ExceptionMiddleware} e também saem nesse formato,
+sem expor detalhes internos.
+
+% ======================= 10 =======================
+\section{Principais endpoints}
+
+A lista completa pode ser testada no Swagger (\url{http://localhost:5080/swagger}). Os endpoints
+marcados como públicos não exigem token; todos os demais exigem.
+
+\begin{longtable}{@{}p{2.5cm}p{8.2cm}p{4.4cm}@{}}
+\toprule
+\textbf{Método} & \textbf{Rota} & \textbf{Descrição} \\
+\midrule
+\endhead
+GET  & \cod{/api/status} & API no ar (público) \\
+POST & \cod{/api/auth/login} & autenticação, devolve o JWT (público) \\
+GET  & \cod{/api/auth/me} & dados do usuário do token \\
+CRUD & \cod{/api/usuarios} & usuários (Administrador) \\
+CRUD & \cod{/api/pacientes} & pacientes, busca por nome ou CPF \\
+GET  & \cod{/api/pacientes/\{id\}/prontuario} & prontuário completo \\
+GET  & \cod{/api/pacientes/\{id\}/gastos} & consolidação de gastos \\
+CRUD & \cod{/api/medicos}, \cod{/api/convenios}, \cod{/api/salas}, \cod{/api/medicamentos} & cadastros com cache \\
+GET/POST & \cod{/api/consultas} & listar e agendar \\
+GET  & \cod{/api/consultas/fila-atendimento} & fila ordenada por Manchester \\
+POST & \cod{/api/consultas/\{id\}/triagem} & triagem com risco calculado \\
+POST & \cod{/api/prontuarios/\{id\}/prescricoes} & prescrição (Médico) \\
+CRUD & \cod{/api/leitos} & leitos (mapa com cache) \\
+GET, POST, PATCH & \cod{/api/internacoes} & internação, alta e transferência \\
+GET/POST & \cod{/api/insumos} & estoque e movimentações \\
+GET, POST, PATCH & \cod{/api/faturamentos} & guias, pagamento, auditoria \\
+GET  & \cod{/api/dashboard} & indicadores (com cache) \\
+DELETE & \cod{/api/cache} & limpa o cache (Administrador) \\
+\bottomrule
+\end{longtable}
+
+% ======================= 11 =======================
+\section{Exemplos de requisições e respostas}
+
+\subsection{Login}
+
+\begin{lstlisting}
+POST /api/auth/login
+Content-Type: application/json
+
+{ "email": "admin@hospital.local", "senha": "Admin@2026" }
+\end{lstlisting}
+
+Resposta \textbf{200}:
+\begin{lstlisting}
+{
+  "success": true,
+  "message": "Login realizado com sucesso.",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "tipo": "Bearer",
+    "expiraEm": "2026-11-25T14:46:32-03:00",
+    "usuario": { "id": 1, "nome": "Administrador do Sistema", "perfil": "Administrador" }
+  },
+  "errors": []
+}
+\end{lstlisting}
+
+\subsection{Endpoint protegido sem token}
+
+Resposta \textbf{401}:
+\begin{lstlisting}
+{ "success": false,
+  "message": "Token não informado. Faça login para acessar este recurso.",
+  "data": null,
+  "errors": ["Token não informado. Faça login para acessar este recurso."] }
+\end{lstlisting}
+
+\subsection{Regra de negócio violada}
+
+\cod{POST /api/pacientes} com dados inválidos, resposta \textbf{422}:
+\begin{lstlisting}
+{ "success": false,
+  "message": "A operação viola regras de negócio.",
+  "data": null,
+  "errors": [
+    "RN-PAC-02: CPF inválido.",
+    "RN-PAC-04: Data de nascimento é obrigatória e não pode ser futura."
+  ] }
+\end{lstlisting}
+
+\subsection{Triagem com risco calculado pela API}
+
+\cod{POST /api/consultas/1/triagem}:
+\begin{lstlisting}
+{ "temperatura": 39.5, "pressaoArterial": "13/9", "frequenciaCardiaca": 105,
+  "saturacaoOxigenio": 96, "escalaDor": 3 }
+\end{lstlisting}
+
+Resposta \textbf{201}:
+\begin{lstlisting}
+{ "success": true,
+  "message": "Triagem registrada. Classificação: Laranja.",
+  "data": { "id": 1, "idConsulta": 1, "classificacaoRisco": "Laranja" },
+  "errors": [] }
+\end{lstlisting}
+
+\subsection{Perfil sem permissão}
+
+Usuário da Recepção tentando excluir um paciente, resposta \textbf{403}:
+\begin{lstlisting}
+{ "success": false, "message": "Acesso negado.", "data": null,
+  "errors": ["O perfil 'Recepcao' não tem permissão para esta operação."] }
+\end{lstlisting}
+
+\subsection{Cache}
+
+\begin{lstlisting}
+GET /api/medicos   → 200, X-Cache: MISS
+GET /api/medicos   → 200, X-Cache: HIT
+POST /api/medicos  → invalida catalogo:medicos
+GET /api/medicos   → 200, X-Cache: MISS
+\end{lstlisting}
+
+% ======================= 12 =======================
+\section{Integração com o aplicativo}
+
+O aplicativo PHP da disciplina anterior deixou de acessar o banco e passou a consumir a API.
+A classe \cod{web/lib/ApiClient.php} faz as chamadas HTTP com cURL, envia o token JWT no
+cabeçalho \cod{Authorization} e lê o \cod{ResultWrapper}: se \cod{success} for verdadeiro, usa
+\cod{data}; caso contrário, mostra \cod{message} e \cod{errors} na tela. Se a API estiver fora do
+ar, o aplicativo exibe uma mensagem amigável.
+
+% ======================= 13 =======================
+\section{Principais decisões arquiteturais}
+
+\begin{tabularx}{\textwidth}{@{}lL@{}}
+\toprule
+\textbf{Decisão} & \textbf{Motivo} \\
+\midrule
+Clean Architecture em 4 projetos & isola as regras de negócio da tecnologia; trocar banco ou cache mexe só na Infrastructure \\
+Regras dentro das entidades & propriedades com \cod{private set}; não é possível criar estado inválido sem passar pela regra \\
+ADO.NET sem Entity Framework & o banco já existia; com SQL explícito o schema original foi mantido \\
+Unit of Work & operações que precisam acontecer juntas (internar e ocupar leito) ficam numa transação \\
+ResultWrapper único & o cliente trata todas as respostas do mesmo jeito \\
+JWT + PBKDF2 & autenticação sem estado no servidor e senhas resistentes a força bruta \\
+IMemoryCache atrás de \cod{ICacheService} & simples para uma instância; pode virar Redis sem mudar os serviços \\
+Segredos fora do código & \cod{.env} e \textit{user-secrets}; nada sensível vai para o Git \\
+Docker Compose & banco, API e aplicativo sobem com um único comando \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Escalabilidade}
+
+A API não guarda sessão no servidor (o JWT carrega a identidade do usuário) e roda em
+container, então é possível executar várias instâncias atrás de um balanceador de carga. Para
+isso, dois pontos mudariam: o cache em memória passaria a ser compartilhado (Redis, trocando
+apenas a implementação de \cod{ICacheService}) e a criação do banco sairia da inicialização da
+API para uma etapa separada de migração.
+
+% ======================= 14 =======================
+\section{Reprodução do projeto}
+
+\begin{lstlisting}
+git clone <URL do repositório>
+cd HospitalSystem
+copy .env.example .env
+docker compose up --build
+\end{lstlisting}
+
+Depois, acessar \url{http://localhost:5080/swagger} (API) e
+\url{http://localhost:8080/login.php} (aplicativo) com os usuários da seção~\ref{sec:usuarios}.
+
+\end{document}

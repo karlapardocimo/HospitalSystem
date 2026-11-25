@@ -1,0 +1,14 @@
+<Project>
+  <!-- Configurações comuns a todos os projetos da solução -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- Versão única dos pacotes Microsoft.IdentityModel.* para evitar conflito entre
+         o gerador de token (Infrastructure) e o validador (JwtBearer na Api). -->
+    <IdentityModelVersion Condition="'$(IdentityModelVersion)' == ''">8.14.0</IdentityModelVersion>
+    <MicrosoftExtensionsVersion Condition="'$(MicrosoftExtensionsVersion)' == ''">10.0.0</MicrosoftExtensionsVersion>
+  </PropertyGroup>
+</Project>

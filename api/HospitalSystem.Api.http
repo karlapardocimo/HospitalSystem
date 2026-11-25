@@ -1,0 +1,114 @@
+### Requisições de exemplo (Visual Studio / VS Code "REST Client" / Rider)
+### 1) Execute o login, copie o token da resposta e cole em @token.
+
+@api = http://localhost:5080/api
+@token = COLE_O_TOKEN_AQUI
+
+### Status (público, sem token)
+GET {{api}}/status
+
+### Login (público) -> devolve o JWT
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@hospital.local",
+  "senha": "Admin@2026"
+}
+
+### Quem sou eu (protegido)
+GET {{api}}/auth/me
+Authorization: Bearer {{token}}
+
+### Sem token -> 401 no formato ResultWrapper
+GET {{api}}/pacientes
+
+### Listar pacientes (busca por nome ou CPF)
+GET {{api}}/pacientes?busca=maria
+Authorization: Bearer {{token}}
+
+### Cadastrar paciente (vai para a fila de triagem)
+POST {{api}}/pacientes
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Ana Beatriz Lopes",
+  "cpf": "529.982.247-25",
+  "dataNascimento": "1990-04-15",
+  "telefone": "(32) 99888-1122",
+  "alergias": "Aspirina",
+  "tipoSanguineo": "O+",
+  "enviarParaTriagem": true
+}
+
+### Paciente inválido -> 422 com códigos das regras violadas
+POST {{api}}/pacientes
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nome": "X",
+  "cpf": "111.111.111-11",
+  "dataNascimento": "2030-01-01"
+}
+
+### Cache: chame 2x e compare o cabeçalho X-Cache (MISS -> HIT)
+GET {{api}}/medicos
+Authorization: Bearer {{token}}
+
+### Cache: invalidação (depois disso, GET /medicos volta a ser MISS)
+POST {{api}}/medicos
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Dr. Paulo Mendes",
+  "crm": "556677",
+  "especialidade": "Ortopedia",
+  "email": "paulo@hospital.local"
+}
+
+### Fila de triagem
+GET {{api}}/consultas/fila-triagem
+Authorization: Bearer {{token}}
+
+### Triagem (classificação de Manchester calculada pela API) - troque o id da consulta
+POST {{api}}/consultas/1/triagem
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "temperatura": 39.5,
+  "pressaoArterial": "130/90",
+  "frequenciaCardiaca": 105,
+  "saturacaoOxigenio": 96,
+  "escalaDor": 3,
+  "queixaPrincipal": "Febre alta há 2 dias"
+}
+
+### Fila de atendimento ordenada por gravidade
+GET {{api}}/consultas/fila-atendimento
+Authorization: Bearer {{token}}
+
+### Mapa de leitos (cache de 1 minuto)
+GET {{api}}/leitos?status=Todos
+Authorization: Bearer {{token}}
+
+### Internar paciente
+POST {{api}}/internacoes
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "idPaciente": 2,
+  "idLeito": 1
+}
+
+### Dashboard (cache de 30 segundos)
+GET {{api}}/dashboard
+Authorization: Bearer {{token}}
+
+### Limpar todo o cache (Administrador)
+DELETE {{api}}/cache
+Authorization: Bearer {{token}}

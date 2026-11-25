@@ -1,0 +1,53 @@
+# Sobe banco + API + aplicativo:  docker compose up --build
+# Antes, copie .env.example para .env e preencha as senhas/chave.
+services:
+  db:
+    image: mariadb:10.11
+    container_name: hospital-db
+    environment:
+      MARIADB_DATABASE: hospital
+      MARIADB_USER: hospital
+      MARIADB_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?defina DB_ROOT_PASSWORD no .env}
+      TZ: America/Sao_Paulo
+    ports:
+      - "3307:3306"            # 3307 no host para não conflitar com um MySQL/XAMPP local
+    volumes:
+      - dados-mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: ./api
+    container_name: hospital-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      TZ: America/Sao_Paulo
+      ConnectionStrings__HospitalDb: "Server=db;Port=3306;Database=hospital;User ID=hospital;Password=${DB_PASSWORD};ConvertZeroDateTime=True"
+      Jwt__Key: ${JWT_KEY:?defina JWT_KEY no .env}
+      Seed__AdminEmail: ${ADMIN_EMAIL:-admin@hospital.local}
+      Seed__AdminSenha: ${ADMIN_SENHA:?defina ADMIN_SENHA no .env}
+      Seed__SenhaUsuariosDemo: ${SENHA_USUARIOS_DEMO:-}
+      Database__CriarDadosDemo: ${CRIAR_DADOS_DEMO:-true}
+    ports:
+      - "5080:8080"            # Swagger: http://localhost:5080/swagger
+
+  web:
+    build: ./web
+    container_name: hospital-web
+    depends_on:
+      - api
+    environment:
+      API_BASE_URL: http://api:8080/api   # comunicação entre containers pela rede do compose
+      TZ: America/Sao_Paulo
+    ports:
+      - "8080:80"              # Aplicativo: http://localhost:8080
+
+volumes:
+  dados-mariadb:

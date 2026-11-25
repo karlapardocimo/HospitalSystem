@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Application: casos de uso, DTOs, ResultWrapper. Depende somente do Domain. -->
+  <PropertyGroup>
+    <RootNamespace>HospitalSystem.Application</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\HospitalSystem.Domain\HospitalSystem.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Apenas abstrações de DI/Logging (sem implementação concreta e sem ASP.NET). -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(MicrosoftExtensionsVersion)" />
+  </ItemGroup>
+</Project>
