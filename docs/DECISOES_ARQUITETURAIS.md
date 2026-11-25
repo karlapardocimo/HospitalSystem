@@ -88,6 +88,7 @@ Todas as respostas, inclusive 400, 401, 403, 404 e 500, têm o formato:
 | Registro inexistente | serviço → `ResultWrapper.NotFound` | 404 |
 | Duplicidade (CPF, CRM, e-mail) | serviço → `ResultWrapper.Conflict` | 409 |
 | Regra de negócio violada | entidade lança `BusinessRuleException` → `ExceptionMiddleware` | 422 |
+| Rota inexistente, método não permitido, conteúdo não JSON | `UseStatusCodePages` no `Program.cs` | 404 / 405 / 415 |
 | Erro inesperado | `ExceptionMiddleware` (detalhe só no log) | 500 |
 
 A propriedade `ErrorType` do wrapper tem `[JsonIgnore]`: serve só para a API escolher o status HTTP.

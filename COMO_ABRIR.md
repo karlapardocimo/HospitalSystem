@@ -11,7 +11,7 @@ O trabalho roda em **Docker** (forma oficial). Detalhes e explicações estão n
 
 ## 2. Suba o sistema
 
-Desligue o MySQL do XAMPP, se estiver ligado. Depois, no Prompt de Comando, na pasta do projeto:
+No Prompt de Comando, na pasta do projeto:
 
 ```
 cd "C:\caminho\para\HospitalSystem"
@@ -52,9 +52,9 @@ A primeira vez demora alguns minutos. Está pronto quando aparecer `Banco de dad
 | Erro | Solução |
 |---|---|
 | "Docker daemon is not running" | Abra o Docker Desktop e espere "Engine running" |
-| Porta 3307, 5080 ou 8080 ocupada | Desligue o MySQL do XAMPP e feche outros terminais da API |
+| Porta 3307, 5080 ou 8080 ocupada | Feche o programa que usa a porta (por exemplo, uma API rodando fora do Docker) e rode `docker compose up` de novo |
 | Login com 401 | Confira e-mail e senha da tabela acima |
 
 ## Alternativa sem Docker (desenvolvimento)
 
-Precisa do XAMPP (MySQL ligado) e do .NET 10 SDK. Siga a "Opção B" do `README.md`: configurar os `user-secrets`, rodar `dotnet run --launch-profile http` na pasta `api\src\HospitalSystem.Api` e `C:\xampp\php\php.exe -S localhost:8000` na pasta `web`.
+Precisa do XAMPP (MySQL ligado) e do .NET 10 SDK. Siga a seção **4.3 Sem Docker** do `README.md`: configurar os `user-secrets`, rodar `dotnet run --launch-profile http` na pasta `api\src\HospitalSystem.Api` e `C:\xampp\php\php.exe -S localhost:8000` na pasta `web`.

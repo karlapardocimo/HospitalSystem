@@ -311,8 +311,10 @@ Todas as respostas, de sucesso ou de erro, têm o mesmo formato:
 | 400 | JSON mal formado |
 | 401 | sem token, token inválido ou expirado |
 | 403 | perfil sem permissão |
-| 404 | registro não encontrado |
+| 404 | registro ou rota não encontrados |
+| 405 | método HTTP não permitido para a rota |
 | 409 | duplicidade (CPF, CRM, e-mail) |
+| 415 | corpo enviado sem `Content-Type: application/json` |
 | 422 | regra de negócio violada (`RN-XXX-NN`) |
 | 500 | erro inesperado (detalhe só no log) |
 
